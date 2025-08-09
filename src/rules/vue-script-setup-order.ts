@@ -1,4 +1,11 @@
 import { Rule } from "eslint";
+import {
+  VariableDeclarator,
+  Program,
+  Statement,
+  ModuleDeclaration,
+  Directive,
+} from "estree";
 
 interface GroupConfig {
   patterns: string[];
@@ -96,7 +103,7 @@ const defaultGroups: Record<string, GroupConfig> = {
 };
 
 function getNodeGroup(
-  node: Rule.Node,
+  node: Statement | ModuleDeclaration | Directive,
   groups: Record<string, GroupConfig>
 ): string | null {
   // Для переменных проверяем вызываемую функцию
@@ -151,7 +158,7 @@ function getNodeGroup(
   return null;
 }
 
-function getCallExpressionName(node: Rule.Node): string {
+function getCallExpressionName(node: VariableDeclarator): string {
   if (!node || !node.init) return "";
 
   if (node.init.type === "CallExpression") {
@@ -221,7 +228,7 @@ const rule: Rule.RuleModule = {
     const groups = { ...defaultGroups, ...options.groups };
 
     return {
-      Program(node: Rule.Node) {
+      Program(node: Program) {
         // Проверяем только если это Vue файл со script setup
         const filename = context.getFilename();
         if (!filename.endsWith(".vue")) {

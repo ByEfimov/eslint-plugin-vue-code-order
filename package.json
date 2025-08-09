@@ -17,7 +17,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/ByEfimov/eslint-plugin-vue-code-order.git"
+    "url": "git+https://github.com/ByEfimov/eslint-plugin-vue-code-order.git"
   },
   "bugs": {
     "url": "https://github.com/ByEfimov/eslint-plugin-vue-code-order/issues"
