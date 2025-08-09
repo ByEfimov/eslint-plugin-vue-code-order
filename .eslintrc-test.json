@@ -1,0 +1,10 @@
+{
+  "plugins": ["vue-code-order"],
+  "rules": {
+    "vue-code-order/vue-script-setup-order": "error"
+  },
+  "parser": "vue-eslint-parser",
+  "parserOptions": {
+    "parser": "@typescript-eslint/parser"
+  }
+}

@@ -32,9 +32,13 @@ const plugin = {
           {
             order: [
               "imports",
+              "types",
               "framework-init",
               "stores",
+              "ui-libraries",
               "libraries",
+              "utils",
+              "validation",
               "variables",
               "computed-hooks",
               "server-requests",

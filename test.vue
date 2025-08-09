@@ -78,6 +78,25 @@ const config = {
   defaultMode: "month",
 };
 
+const {
+  data: events,
+  refresh,
+  pending,
+} = await useAsyncData(
+  "events-full",
+  async () => {
+    const res = await eventsStore.getEvents<IEvent[]>({
+      coach__in: authStore.user?.role.id,
+      ...dateRange.value,
+    });
+
+    return res;
+  },
+  {
+    watch: [selectedTeamId],
+  }
+);
+
 const selectedTeamId = computed(() => teamsStore.selectedTeamId!);
 
 const { filteredData } = useFilter({
@@ -153,25 +172,6 @@ const buttonOptions = [
   },
   { title: "Повтор события", icon: "repeat-event", handler: () => {} },
 ];
-
-const {
-  data: events,
-  refresh,
-  pending,
-} = await useAsyncData(
-  "events-full",
-  async () => {
-    const res = await eventsStore.getEvents<IEvent[]>({
-      coach__in: authStore.user?.role.id,
-      ...dateRange.value,
-    });
-
-    return res;
-  },
-  {
-    watch: [selectedTeamId],
-  }
-);
 
 const updatePeriod = (event: { start: string; end: string }) => {
   dateRange.value.start_date = $moment(event.start).format("YYYY-MM-DD");

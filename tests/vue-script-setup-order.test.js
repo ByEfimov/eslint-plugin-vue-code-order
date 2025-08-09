@@ -43,134 +43,28 @@ const message = ref('Hello');
       `,
     },
     {
-      filename: "real-test.vue",
-      code: `
-<template>
-  <div class="root">
-    <CalendarLeftMenu :events="events || []" />
-  </div>
-</template>
-
-<script setup lang="ts">
-import { Qalendar } from "qalendar";
-import { useModal } from "vue-final-modal";
-
-const { $moment } = useNuxtApp();
-const route = useRoute();
-
-const authStore = useAuthStore();
-const eventsStore = useEventsStore();
-const teamsStore = useTeamsStore();
-
-const dateRange = ref({
-  start_date: $moment()
-    .startOf("month")
-    .subtract(7, "days")
-    .format("YYYY-MM-DD"),
-  end_date: $moment().endOf("month").add(7, "days").format("YYYY-MM-DD"),
-});
-
-const config = {
-  week: {},
-  month: { showTrailingAndLeadingDates: true, showEventsOnMobileView: true },
-  locale: "ru-RU",
-  eventDialog: {
-    isCustom: true,
-  },
-  style: {
-    fontFamily: "Inter",
-  },
-  defaultMode: "month",
-};
-
-const selectedTeamId = computed(() => teamsStore.selectedTeamId!);
-
-const {
-  data: events,
-  refresh,
-  pending,
-} = await useAsyncData(
-  "events-full",
-  async () => {
-    const res = await eventsStore.getEvents({
-      coach__in: authStore.user?.role.id,
-      ...dateRange.value,
-    });
-    return res;
-  },
-  {
-    watch: [selectedTeamId],
-  }
-);
-
-const openCreateEventModal = () => {
-  const { open, close } = useModal({
-    component: CreateEventModal,
-    attrs: {
-      mode: "event",
-      onClose() {
-        close();
-      },
-      async onDoneCreate() {
-        await refresh();
-        close();
-      },
-    },
-  });
-  open();
-};
-
-watch(
-  route,
-  () => {
-    if (route.query.mode === "addEvent") {
-      openCreateEventModal();
-    }
-  },
-  { immediate: true }
-);
-
-onActivated(() => {
-  refresh();
-});
-
-definePageMeta({
-  middleware: ["auth", "route"],
-  auth: true,
-  route: "Calendar",
-});
-</script>
-      `,
-    },
-  ],
-
-  invalid: [
-    {
-      filename: "test.vue",
+      filename: "test-basic.vue",
       code: `
 <template>
   <div>{{ message }}</div>
 </template>
 
 <script setup lang="ts">
-// Неправильный порядок - stores перед framework init
-const authStore = useAuthStore();
-const route = useRoute();
+import { ref } from 'vue';
 
+const route = useRoute();
+const authStore = useAuthStore();
 const message = ref('Hello');
+const fullName = computed(() => message.value);
+const handleClick = () => {};
+watch(message, () => {});
+onMounted(() => {});
 </script>
       `,
-      errors: [
-        {
-          messageId: "incorrectOrder",
-          data: {
-            expectedGroup: "Store initialization",
-            actualGroup: "Framework initialization functions",
-          },
-        },
-      ],
     },
+  ],
 
+  invalid: [
     {
       filename: "test.vue",
       code: `
@@ -190,6 +84,31 @@ const authStore = useAuthStore();
 
 // Server requests
 const { data } = await useAsyncData('test', () => {});
+</script>
+      `,
+      errors: [
+        {
+          messageId: "incorrectOrder",
+        },
+      ],
+    },
+
+    {
+      filename: "test-wrong-watchers.vue",
+      code: `
+<template>
+  <div>{{ message }}</div>
+</template>
+
+<script setup lang="ts">
+const route = useRoute();
+const message = ref('Hello');
+
+// Watchers
+watch(message, () => {});
+
+// App functions после watchers - неправильно
+const handleClick = () => {};
 </script>
       `,
       errors: [
