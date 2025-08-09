@@ -1,6 +1,6 @@
 {
   "name": "eslint-plugin-vue-code-order",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "ESLint plugin for enforcing code order in Vue files",
   "main": "lib/index.js",
   "keywords": [
