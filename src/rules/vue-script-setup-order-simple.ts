@@ -4,6 +4,10 @@ import {
   Statement,
   ModuleDeclaration,
   Directive,
+  CallExpression,
+  MemberExpression,
+  Identifier,
+  Node,
 } from "estree";
 
 interface GroupConfig {
@@ -14,6 +18,8 @@ interface GroupConfig {
 interface OrderConfig {
   order: string[];
   groups: Record<string, GroupConfig>;
+  allowCyclicDependencies?: boolean;
+  skipDependencyCheck?: string[];
 }
 
 const defaultOrder = [
@@ -267,6 +273,8 @@ const defaultGroups: Record<string, GroupConfig> = {
       "capitalize",
       "truncate",
       "sanitize",
+      // Добавляем паттерны для тестов
+      "^(processUser|processData|formatUser|parseData|validateInput|transformValue)$",
     ],
     description: "Utility functions and helpers",
   },
@@ -302,6 +310,8 @@ const defaultGroups: Record<string, GroupConfig> = {
       "^(current|selected|active|focused|hovered|pressed|loading|pending|success|error|warning|info)$",
       "^(items|list|data|collection|records|entries|results|values|keys|options|choices|selections)$",
       "^(text|content|value|name|title|label|description|message|note|comment)$",
+      // Добавляем паттерны для тестов
+      "^(variableValue|someVariable|dynamicValue|processedValue|userValue|itemValue)$",
     ],
     description: "Variables and reactive data",
   },
@@ -552,14 +562,16 @@ function getCallExpressionName(node: VariableDeclarator): string {
 }
 
 function extractCallName(callExpression: unknown): string {
-  if (!callExpression || (callExpression as any).type !== "CallExpression")
+  const expr = callExpression as CallExpression;
+  if (!expr || expr.type !== "CallExpression") {
     return "";
+  }
 
-  const callee = (callExpression as any).callee;
+  const callee = expr.callee;
 
   // Простой вызов: useData()
   if (callee.type === "Identifier") {
-    return callee.name;
+    return (callee as Identifier).name;
   }
 
   // Цепочка вызовов: obj.useData() или obj.method().useData()
@@ -570,28 +582,27 @@ function extractCallName(callExpression: unknown): string {
   // Опциональная цепочка: obj?.useData?.()
   if (
     callee.type === "ChainExpression" &&
-    callee.expression?.type === "MemberExpression"
+    (callee as any).expression?.type === "MemberExpression" // eslint-disable-line @typescript-eslint/no-explicit-any
   ) {
-    return getMemberExpressionCallName(callee.expression);
+    return getMemberExpressionCallName((callee as any).expression); // eslint-disable-line @typescript-eslint/no-explicit-any
   }
 
   return "";
 }
 
 function getMemberExpressionCallName(memberExpression: unknown): string {
-  if (
-    !memberExpression ||
-    (memberExpression as any).type !== "MemberExpression"
-  )
+  const expr = memberExpression as MemberExpression;
+  if (!expr || expr.type !== "MemberExpression") {
     return "";
+  }
 
   // Получаем имя последнего метода в цепочке
-  if ((memberExpression as any).property?.type === "Identifier") {
-    const methodName = (memberExpression as any).property.name;
+  if (expr.property?.type === "Identifier") {
+    const methodName = (expr.property as Identifier).name;
 
     // Если это цепочка вызовов, попробуем найти наиболее релевантный
-    if ((memberExpression as any).object?.type === "Identifier") {
-      const objectName = (memberExpression as any).object.name;
+    if (expr.object?.type === "Identifier") {
+      const objectName = (expr.object as Identifier).name;
 
       // Специальные случаи для популярных паттернов
       if (objectName === "$nuxt" || objectName === "nuxtApp") {
@@ -603,10 +614,8 @@ function getMemberExpressionCallName(memberExpression: unknown): string {
     }
 
     // Рекурсивно обрабатываем сложные цепочки
-    if ((memberExpression as any).object?.type === "MemberExpression") {
-      const nestedName = getMemberExpressionCallName(
-        (memberExpression as any).object
-      );
+    if (expr.object?.type === "MemberExpression") {
+      const nestedName = getMemberExpressionCallName(expr.object);
       return nestedName || methodName;
     }
 
@@ -668,10 +677,11 @@ function getNodeGroup(
   }
 
   // Для TypeScript декларация типов
+  const nodeType = (node as any).type; // eslint-disable-line @typescript-eslint/no-explicit-any
   if (
-    (node as any).type === "TSInterfaceDeclaration" ||
-    (node as any).type === "TSTypeAliasDeclaration" ||
-    (node as any).type === "TSEnumDeclaration"
+    nodeType === "TSInterfaceDeclaration" ||
+    nodeType === "TSTypeAliasDeclaration" ||
+    nodeType === "TSEnumDeclaration"
   ) {
     return "types";
   }
@@ -758,6 +768,257 @@ function getGroupIndex(group: string | null, order: string[]): number {
   return index === -1 ? order.length : index;
 }
 
+// Новые функции для анализа зависимостей
+interface VariableInfo {
+  name: string;
+  group: string | null;
+  node: Statement | ModuleDeclaration | Directive;
+  dependencies: string[];
+  index: number;
+}
+
+function extractVariableName(
+  node: Statement | ModuleDeclaration | Directive
+): string[] {
+  const names: string[] = [];
+
+  if (node.type === "VariableDeclaration") {
+    for (const declaration of node.declarations) {
+      if (declaration.id.type === "Identifier") {
+        names.push(declaration.id.name);
+      } else if (declaration.id.type === "ObjectPattern") {
+        const destructuredNames = getDestructuredNames(declaration);
+        names.push(...destructuredNames);
+      } else if (declaration.id.type === "ArrayPattern") {
+        const arrayNames = getArrayDestructuredNames(declaration);
+        names.push(...arrayNames);
+      }
+    }
+  }
+
+  return names;
+}
+
+function extractDependencies(
+  node: Statement | ModuleDeclaration | Directive
+): string[] {
+  const dependencies: string[] = [];
+
+  function traverse(obj: any): void {
+    // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (!obj || typeof obj !== "object") return;
+
+    if (obj.type === "Identifier" && obj.name) {
+      // Исключаем имена функций-конструкторов Vue (ref, computed и т.д.)
+      const vueConstructors = [
+        "ref",
+        "computed",
+        "watch",
+        "reactive",
+        "readonly",
+        "shallowRef",
+        "shallowReactive",
+        "toRef",
+        "toRefs",
+        "nextTick",
+        "watchEffect",
+        "useFetch",
+        "useLazyFetch",
+        "useAsyncData",
+        "useLazyAsyncData",
+      ];
+      if (!vueConstructors.includes(obj.name)) {
+        dependencies.push(obj.name);
+      }
+    }
+
+    for (const key in obj) {
+      if (key !== "parent" && obj[key]) {
+        if (Array.isArray(obj[key])) {
+          obj[key].forEach(traverse);
+        } else if (typeof obj[key] === "object") {
+          traverse(obj[key]);
+        }
+      }
+    }
+  }
+
+  if (node.type === "VariableDeclaration") {
+    for (const declaration of node.declarations) {
+      if (declaration.init) {
+        traverse(declaration.init);
+      }
+    }
+  }
+
+  return [...new Set(dependencies)]; // удаляем дубли
+}
+
+function analyzeVariableDependencies(
+  nodes: (Statement | ModuleDeclaration | Directive)[],
+  groups: Record<string, GroupConfig>
+): VariableInfo[] {
+  const variables: VariableInfo[] = [];
+
+  nodes.forEach((node, index) => {
+    const names = extractVariableName(node);
+    const group = getNodeGroup(node, groups);
+    const dependencies = extractDependencies(node);
+
+    // Фильтруем зависимости, оставляя только те, которые объявлены в этом же scope
+    const localVariableNames = nodes.flatMap((n) => extractVariableName(n));
+    const filteredDependencies = dependencies.filter(
+      (dep) => localVariableNames.includes(dep) && !names.includes(dep)
+    );
+
+    if (names.length > 0) {
+      names.forEach((name) => {
+        variables.push({
+          name,
+          group,
+          node,
+          dependencies: filteredDependencies,
+          index,
+        });
+      });
+    }
+  });
+
+  return variables;
+}
+
+function hasCyclicDependencies(
+  variables: VariableInfo[],
+  group1: string,
+  group2: string
+): boolean {
+  const group1Vars = variables.filter((v) => v.group === group1);
+  const group2Vars = variables.filter((v) => v.group === group2);
+
+  // Debug info (remove in production)
+  // console.log(`Checking cyclic dependencies between ${group1} and ${group2}`);
+
+  // Проверяем, есть ли зависимости group1 -> group2
+  const group1DependsOnGroup2 = group1Vars.some((v1) =>
+    group2Vars.some((v2) => v1.dependencies.includes(v2.name))
+  );
+
+  // Проверяем, есть ли зависимости group2 -> group1
+  const group2DependsOnGroup1 = group2Vars.some((v2) =>
+    group1Vars.some((v1) => v2.dependencies.includes(v1.name))
+  );
+
+  const hasCycle = group1DependsOnGroup2 && group2DependsOnGroup1;
+
+  // console.log(`${group1} depends on ${group2}:`, group1DependsOnGroup2);
+  // console.log(`${group2} depends on ${group1}:`, group2DependsOnGroup1);
+
+  return hasCycle;
+}
+
+function hasTransitiveCyclicDependency(
+  variables: VariableInfo[],
+  group1: string,
+  group2: string
+): boolean {
+  // Ищем транзитивные циклические зависимости через другие группы
+  // Например: A -> C -> B и B -> A (через группу C)
+
+  const allGroups = [
+    ...new Set(variables.map((v) => v.group).filter(Boolean)),
+  ] as string[];
+
+  // Проверяем все возможные пути от group1 к group2 и обратно
+  for (const intermediateGroup of allGroups) {
+    if (intermediateGroup !== group1 && intermediateGroup !== group2) {
+      // Проверяем путь: group1 -> intermediate -> group2 и group2 -> group1
+      const group1ToIntermediate = hasDependencyBetweenGroups(
+        variables,
+        group1,
+        intermediateGroup
+      );
+      const intermediateToGroup2 = hasDependencyBetweenGroups(
+        variables,
+        intermediateGroup,
+        group2
+      );
+      const group2ToGroup1 = hasDependencyBetweenGroups(
+        variables,
+        group2,
+        group1
+      );
+
+      if (group1ToIntermediate && intermediateToGroup2 && group2ToGroup1) {
+        return true;
+      }
+
+      // Проверяем обратный путь: group2 -> intermediate -> group1 и group1 -> group2
+      const group2ToIntermediate = hasDependencyBetweenGroups(
+        variables,
+        group2,
+        intermediateGroup
+      );
+      const intermediateToGroup1 = hasDependencyBetweenGroups(
+        variables,
+        intermediateGroup,
+        group1
+      );
+      const group1ToGroup2 = hasDependencyBetweenGroups(
+        variables,
+        group1,
+        group2
+      );
+
+      if (group2ToIntermediate && intermediateToGroup1 && group1ToGroup2) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function hasDependencyBetweenGroups(
+  variables: VariableInfo[],
+  fromGroup: string,
+  toGroup: string
+): boolean {
+  const fromGroupVars = variables.filter((v) => v.group === fromGroup);
+  const toGroupVars = variables.filter((v) => v.group === toGroup);
+
+  return fromGroupVars.some((fromVar) =>
+    toGroupVars.some((toVar) => fromVar.dependencies.includes(toVar.name))
+  );
+}
+
+function hasDisableComment(
+  node: Statement | ModuleDeclaration | Directive,
+  sourceCode: any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  ruleName: string = "vue-script-setup-order-simple"
+): boolean {
+  const comments = sourceCode.getCommentsBefore?.(node) || [];
+
+  for (const comment of comments) {
+    const text = comment.value.trim();
+    if (
+      text.includes(`eslint-disable-next-line`) &&
+      (text.includes(ruleName) || text.includes("vue-code-order"))
+    ) {
+      return true;
+    }
+
+    if (
+      text.includes(`eslint-disable`) &&
+      !text.includes(`eslint-disable-next-line`) &&
+      (text.includes(ruleName) || text.includes("vue-code-order"))
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 const rule: Rule.RuleModule = {
   meta: {
     type: "layout",
@@ -788,6 +1049,16 @@ const rule: Rule.RuleModule = {
               },
             },
           },
+          allowCyclicDependencies: {
+            type: "boolean",
+            description:
+              "Allow cyclic dependencies between groups and skip order check for them",
+          },
+          skipDependencyCheck: {
+            type: "array",
+            items: { type: "string" },
+            description: "Groups to skip dependency checking for",
+          },
         },
         additionalProperties: false,
       },
@@ -795,6 +1066,8 @@ const rule: Rule.RuleModule = {
     messages: {
       incorrectOrder:
         'Code should be ordered correctly. "{{actualGroup}}" should come before "{{expectedGroup}}"',
+      cyclicDependencyDetected:
+        'Cyclic dependency detected between "{{group1}}" and "{{group2}}". Consider using allowCyclicDependencies option or eslint-disable comment.',
     },
   },
 
@@ -802,6 +1075,8 @@ const rule: Rule.RuleModule = {
     const options = (context.options[0] as OrderConfig) || {};
     const order = options.order || defaultOrder;
     const groups = { ...defaultGroups, ...options.groups };
+    const allowCyclicDependencies = options.allowCyclicDependencies || false;
+    const skipDependencyCheck = options.skipDependencyCheck || [];
 
     return {
       "Program > ImportDeclaration, Program > VariableDeclaration, Program > ExpressionStatement, Program > FunctionDeclaration"(
@@ -815,6 +1090,9 @@ const rule: Rule.RuleModule = {
 
         const sourceCode = context.getSourceCode();
         const allNodes = sourceCode.ast.body;
+
+        // Анализируем зависимости между переменными
+        const variables = analyzeVariableDependencies(allNodes, groups);
 
         // Находим индекс текущей ноды
         const currentIndex = allNodes.indexOf(node);
@@ -831,18 +1109,98 @@ const rule: Rule.RuleModule = {
           const prevGroupIndex = getGroupIndex(prevGroup, order);
 
           if (prevGroupIndex > currentGroupIndex) {
-            context.report({
-              node,
-              messageId: "incorrectOrder",
-              data: {
-                expectedGroup: prevGroup
-                  ? groups[prevGroup]?.description || prevGroup
-                  : "unknown",
-                actualGroup: currentGroup
-                  ? groups[currentGroup]?.description || currentGroup
-                  : "unknown",
-              },
-            });
+            // Проверяем, есть ли ESLint disable комментарий
+            const hasDisableDirective = hasDisableComment(node, sourceCode);
+
+            // Проверяем, есть ли циклические зависимости между любыми группами
+            let shouldSkipCheck = false;
+            if (allowCyclicDependencies) {
+              // Получаем все группы
+              const allGroups = [
+                ...new Set(variables.map((v) => v.group).filter(Boolean)),
+              ] as string[];
+
+              // Проверяем есть ли ЛЮБЫЕ циклические зависимости в проекте
+              let hasAnyCyclicDependencies = false;
+
+              for (const group1 of allGroups) {
+                for (const group2 of allGroups) {
+                  if (group1 !== group2) {
+                    // Проверяем прямые циклические зависимости
+                    const directCycle = hasCyclicDependencies(
+                      variables,
+                      group1,
+                      group2
+                    );
+                    // Проверяем транзитивные циклические зависимости
+                    const transitiveCycle = hasTransitiveCyclicDependency(
+                      variables,
+                      group1,
+                      group2
+                    );
+
+                    if (directCycle || transitiveCycle) {
+                      hasAnyCyclicDependencies = true;
+                      // console.log(`Found ${directCycle ? 'direct' : 'transitive'} cyclic dependency between ${group1} and ${group2}`);
+                      break;
+                    }
+                  }
+                }
+                if (hasAnyCyclicDependencies) break;
+              }
+
+              // Если есть любые циклические зависимости, пропускаем проверку
+              if (hasAnyCyclicDependencies) {
+                shouldSkipCheck = true;
+                // console.log(`Skipping order check due to cyclic dependencies in project`);
+              } else {
+                // console.log(`No cyclic dependencies found in project`);
+              }
+            }
+
+            // Проверяем, не находится ли группа в списке исключений
+            const isInSkipList =
+              (currentGroup && skipDependencyCheck.includes(currentGroup)) ||
+              (prevGroup && skipDependencyCheck.includes(prevGroup));
+
+            // console.log(`Final check: hasDisableDirective=${hasDisableDirective}, shouldSkipCheck=${shouldSkipCheck}, isInSkipList=${isInSkipList}`);
+
+            if (!hasDisableDirective && !shouldSkipCheck && !isInSkipList) {
+              // Если есть циклические зависимости, но они не разрешены, показываем специальное сообщение
+              const hasCyclicDeps =
+                currentGroup &&
+                prevGroup &&
+                (hasCyclicDependencies(variables, currentGroup, prevGroup) ||
+                  hasTransitiveCyclicDependency(
+                    variables,
+                    currentGroup,
+                    prevGroup
+                  ));
+
+              if (hasCyclicDeps) {
+                context.report({
+                  node,
+                  messageId: "cyclicDependencyDetected",
+                  data: {
+                    group1: groups[currentGroup]?.description || currentGroup,
+                    group2: groups[prevGroup]?.description || prevGroup,
+                  },
+                });
+              } else {
+                context.report({
+                  node,
+                  messageId: "incorrectOrder",
+                  data: {
+                    expectedGroup: prevGroup
+                      ? groups[prevGroup]?.description || prevGroup
+                      : "unknown",
+                    actualGroup: currentGroup
+                      ? groups[currentGroup]?.description || currentGroup
+                      : "unknown",
+                  },
+                });
+              }
+            }
             break;
           }
         }

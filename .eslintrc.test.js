@@ -1,12 +1,19 @@
 module.exports = {
-  plugins: ["./lib/index.js"],
-  rules: {
-    "./lib/index.js/vue-script-setup-order": "error",
-  },
   parser: "vue-eslint-parser",
   parserOptions: {
     ecmaVersion: 2020,
     sourceType: "module",
-    parser: "@typescript-eslint/parser",
+    parser: {
+      ts: "@typescript-eslint/parser",
+    },
+  },
+  plugins: ["vue-code-order"],
+  rules: {
+    "vue-code-order/vue-script-setup-order-simple": [
+      "error",
+      {
+        allowCyclicDependencies: false,
+      },
+    ],
   },
 };
