@@ -18,6 +18,7 @@ interface OrderConfig {
 }
 
 const defaultOrder = [
+  "imports",
   "framework-init",
   "stores",
   "libraries",
@@ -31,6 +32,10 @@ const defaultOrder = [
 ];
 
 const defaultGroups: Record<string, GroupConfig> = {
+  imports: {
+    patterns: [], // Импорты обрабатываются специально
+    description: "Import statements",
+  },
   "framework-init": {
     patterns: [
       "useRoute",
@@ -46,7 +51,7 @@ const defaultGroups: Record<string, GroupConfig> = {
     description: "Framework initialization functions",
   },
   stores: {
-    patterns: ["use.*Store", "usePinia", "useStore"],
+    patterns: [".*Store", "usePinia", "useStore"],
     description: "Store initialization",
   },
   libraries: {
@@ -106,24 +111,29 @@ function getNodeGroup(
   node: Statement | ModuleDeclaration | Directive,
   groups: Record<string, GroupConfig>
 ): string | null {
+  // Для импортов
+  if (node.type === "ImportDeclaration") {
+    return "imports";
+  }
+
   // Для переменных проверяем вызываемую функцию
   if (node.type === "VariableDeclaration") {
     for (const declaration of node.declarations) {
-      if (declaration.id.type === "Identifier") {
-        const callName = getCallExpressionName(declaration);
-        if (callName) {
-          // Проверяем паттерны по имени вызываемой функции
-          for (const [groupName, group] of Object.entries(groups)) {
-            for (const pattern of group.patterns) {
-              const regex = new RegExp(pattern);
-              if (regex.test(callName)) {
-                return groupName;
-              }
+      const callName = getCallExpressionName(declaration);
+      if (callName) {
+        // Проверяем паттерны по имени вызываемой функции
+        for (const [groupName, group] of Object.entries(groups)) {
+          for (const pattern of group.patterns) {
+            const regex = new RegExp(pattern);
+            if (regex.test(callName)) {
+              return groupName;
             }
           }
         }
+      }
 
-        // Если не нашли по вызову, проверяем имя переменной
+      // Если не нашли по вызову, проверяем имя переменной (только для Identifier)
+      if (declaration.id.type === "Identifier") {
         const varName = declaration.id.name;
         for (const [groupName, group] of Object.entries(groups)) {
           for (const pattern of group.patterns) {
@@ -218,7 +228,7 @@ const rule: Rule.RuleModule = {
     ],
     messages: {
       incorrectOrder:
-        'Code should be ordered correctly. Expected "{{expectedGroup}}" but found "{{actualGroup}}"',
+        'Code should be ordered correctly. "{{actualGroup}}" should come before "{{expectedGroup}}"',
     },
   },
 

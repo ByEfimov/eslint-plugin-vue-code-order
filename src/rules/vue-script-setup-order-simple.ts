@@ -17,6 +17,7 @@ interface OrderConfig {
 }
 
 const defaultOrder = [
+  "imports",
   "framework-init",
   "stores",
   "libraries",
@@ -30,6 +31,10 @@ const defaultOrder = [
 ];
 
 const defaultGroups: Record<string, GroupConfig> = {
+  imports: {
+    patterns: [], // Импорты обрабатываются специально
+    description: "Import statements",
+  },
   "framework-init": {
     patterns: [
       "useRoute",
@@ -41,7 +46,7 @@ const defaultGroups: Record<string, GroupConfig> = {
     description: "Framework initialization functions",
   },
   stores: {
-    patterns: [".*Store$", "usePinia", "useStore"],
+    patterns: [".*Store", "usePinia", "useStore"],
     description: "Store initialization",
   },
   libraries: {
@@ -108,26 +113,31 @@ function getNodeGroup(
   node: Statement | ModuleDeclaration | Directive,
   groups: Record<string, GroupConfig>
 ): string | null {
+  // Для импортов
+  if (node.type === "ImportDeclaration") {
+    return "imports";
+  }
+
   // Для переменных проверяем вызываемую функцию
   if (node.type === "VariableDeclaration") {
     for (const declaration of node.declarations) {
-      if (declaration.id.type === "Identifier") {
-        const callName = getCallExpressionName(declaration);
-        const varName = declaration.id.name;
+      const callName = getCallExpressionName(declaration);
 
-        // Сначала проверяем по вызываемой функции
-        if (callName) {
-          for (const [groupName, group] of Object.entries(groups)) {
-            for (const pattern of group.patterns) {
-              const regex = new RegExp(pattern);
-              if (regex.test(callName)) {
-                return groupName;
-              }
+      // Сначала проверяем по вызываемой функции
+      if (callName) {
+        for (const [groupName, group] of Object.entries(groups)) {
+          for (const pattern of group.patterns) {
+            const regex = new RegExp(pattern);
+            if (regex.test(callName)) {
+              return groupName;
             }
           }
         }
+      }
 
-        // Затем по имени переменной
+      // Затем по имени переменной (только для Identifier)
+      if (declaration.id.type === "Identifier") {
+        const varName = declaration.id.name;
         for (const [groupName, group] of Object.entries(groups)) {
           for (const pattern of group.patterns) {
             const regex = new RegExp(pattern);
@@ -203,7 +213,7 @@ const rule: Rule.RuleModule = {
     ],
     messages: {
       incorrectOrder:
-        'Code should be ordered correctly. Expected "{{expectedGroup}}" but found "{{actualGroup}}"',
+        'Code should be ordered correctly. "{{actualGroup}}" should come before "{{expectedGroup}}"',
     },
   },
 
@@ -213,7 +223,7 @@ const rule: Rule.RuleModule = {
     const groups = { ...defaultGroups, ...options.groups };
 
     return {
-      "Program > VariableDeclaration, Program > ExpressionStatement, Program > FunctionDeclaration"(
+      "Program > ImportDeclaration, Program > VariableDeclaration, Program > ExpressionStatement, Program > FunctionDeclaration"(
         node: Statement | ModuleDeclaration | Directive
       ) {
         // Проверяем только если это Vue файл

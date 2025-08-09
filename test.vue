@@ -65,8 +65,6 @@ const dateRange = ref({
   end_date: $moment().endOf("month").add(7, "days").format("YYYY-MM-DD"),
 });
 
-const selectedTeamId = computed(() => teamsStore.selectedTeamId!);
-
 const config = {
   week: {},
   month: { showTrailingAndLeadingDates: true, showEventsOnMobileView: true },
@@ -79,6 +77,28 @@ const config = {
   },
   defaultMode: "month",
 };
+
+const selectedTeamId = computed(() => teamsStore.selectedTeamId!);
+
+const { filteredData } = useFilter({
+  data: events,
+  key: "events-filter",
+  filters: [
+    {
+      field: "eventType",
+      type: "select",
+    },
+    {
+      field: "goal",
+      type: "custom",
+      customFilter: (event, value) => {
+        return !!event.planOnPeriod.goals.find(
+          (evGoal) => !!value.find((goal: number) => goal === evGoal.id)
+        );
+      },
+    },
+  ],
+});
 
 const openCreateEventModal = () => {
   const { open, close } = useModal({
@@ -152,26 +172,6 @@ const {
     watch: [selectedTeamId],
   }
 );
-
-const { filteredData } = useFilter({
-  data: events,
-  key: "events-filter",
-  filters: [
-    {
-      field: "eventType",
-      type: "select",
-    },
-    {
-      field: "goal",
-      type: "custom",
-      customFilter: (event, value) => {
-        return !!event.planOnPeriod.goals.find(
-          (evGoal) => !!value.find((goal: number) => goal === evGoal.id)
-        );
-      },
-    },
-  ],
-});
 
 const updatePeriod = (event: { start: string; end: string }) => {
   dateRange.value.start_date = $moment(event.start).format("YYYY-MM-DD");
