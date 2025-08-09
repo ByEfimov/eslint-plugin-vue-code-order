@@ -93,6 +93,31 @@ definePageMeta({
 </script>
       `,
     },
+    // Test для fallback к app-functions - правильный порядок
+    {
+      filename: "test-fallback-valid.vue",
+      code: `
+<template>
+  <div>Test</div>
+</template>
+
+<script setup lang="ts">
+// Framework initialization
+const route = useRoute();
+
+// Variables
+const message = ref('Hello');
+
+// Unknown functions classified as app-functions - правильный порядок
+const customFunction = () => {};
+const anotherCustomFunction = () => {};
+const unknownVariable = someUnknownFunction();
+
+// App lifecycle должен быть в конце
+onMounted(() => {});
+</script>
+      `,
+    },
   ],
 
   invalid: [
@@ -143,6 +168,42 @@ const handleClick = () => {};
 </script>
       `,
       errors: [
+        {
+          messageId: "incorrectOrder",
+        },
+      ],
+    },
+    // Test для fallback к app-functions - неправильный порядок
+    {
+      filename: "test-fallback.vue",
+      code: `
+<template>
+  <div>Test</div>
+</template>
+
+<script setup lang="ts">
+// Framework initialization
+const route = useRoute();
+
+// Variables
+const message = ref('Hello');
+
+// App lifecycle - неправильно, должен быть после app-functions
+onMounted(() => {});
+
+// Unknown functions should be classified as app-functions и идти ПОСЛЕ lifecycle
+const customFunction = () => {};
+const anotherCustomFunction = () => {};
+const unknownVariable = someUnknownFunction();
+</script>
+      `,
+      errors: [
+        {
+          messageId: "incorrectOrder",
+        },
+        {
+          messageId: "incorrectOrder",
+        },
         {
           messageId: "incorrectOrder",
         },

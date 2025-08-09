@@ -359,8 +359,9 @@ function getCategoryForFunction(word, lineText) {
             group = findGroupByPattern(functionCall, defaultGroups);
         }
     }
+    // Если группа все еще не найдена, используем fallback к app-functions
     if (!group) {
-        return null;
+        group = "app-functions";
     }
     const groupConfig = defaultGroups[group];
     const order = defaultOrder.indexOf(group);

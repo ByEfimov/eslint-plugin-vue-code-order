@@ -997,6 +997,9 @@ function getNodeGroup(
         if (group) return group;
       }
     }
+
+    // Если это переменная и мы не смогли определить категорию, относим к app-functions
+    return "app-functions";
   }
 
   // Для выражений
@@ -1009,6 +1012,9 @@ function getNodeGroup(
       const group = findGroupByPattern(callName, groups);
       if (group) return group;
     }
+
+    // Если это вызов функции и мы не смогли определить категорию, относим к app-functions
+    return "app-functions";
   }
 
   // Для функциональных деклараций
@@ -1016,6 +1022,9 @@ function getNodeGroup(
     const functionName = node.id.name;
     const group = findGroupByPattern(functionName, groups);
     if (group) return group;
+
+    // Если это объявление функции и мы не смогли определить категорию, относим к app-functions
+    return "app-functions";
   }
 
   return null;
