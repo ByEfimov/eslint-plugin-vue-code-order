@@ -1027,7 +1027,8 @@ function getNodeGroup(
     return "app-functions";
   }
 
-  return null;
+  // Для всех остальных случаев, которые мы не смогли классифицировать, используем app-functions
+  return "app-functions";
 }
 
 function findGroupByPattern(

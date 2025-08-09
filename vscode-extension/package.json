@@ -2,7 +2,7 @@
   "name": "vue-code-order-hover",
   "displayName": "Vue Code Order Hover",
   "description": "Shows function categories when hovering in Vue script setup blocks",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "publisher": "byefimov",
   "author": {
     "name": "Nikita Efimov",
