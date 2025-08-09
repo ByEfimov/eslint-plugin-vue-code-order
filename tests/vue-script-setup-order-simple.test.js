@@ -73,6 +73,9 @@ onMounted(() => {});
 // Libraries
 const searchQuery = ref('initial');
 
+// Variables  
+const variableValue = ref('test');
+
 // Server request - зависит от computed (будет создана циклическая зависимость)
 const serverData = await useFetch('/api/items', {
   query: computedQuery
@@ -82,9 +85,6 @@ const serverData = await useFetch('/api/items', {
 const computedQuery = computed(() => {
   return { filter: searchQuery.value, processedData: serverData.value };
 });
-
-// Variables  
-const result = ref('test');
 </script>
       `,
       options: [{ allowCyclicDependencies: true }],
@@ -130,7 +130,7 @@ const filteredData = computed(() => {
 });
 </script>
       `,
-      options: [{ skipDependencyCheck: ['libraries'] }],
+      options: [{ skipDependencyCheck: ["libraries"] }],
     },
     {
       filename: "test-universal-cyclic-dependencies.vue",
@@ -149,6 +149,60 @@ const message = ref('hello');
 </script>
       `,
       options: [{ allowCyclicDependencies: true }],
+    },
+    {
+      filename: "test-selective-cyclic-dependencies.vue",
+      code: `
+<template>
+  <div>{{ message }}</div>
+</template>
+
+<script setup lang="ts">
+// Libraries group
+const message = ref('Hello'); // libraries group
+
+// Циклические зависимости между variables и computed-hooks (будут игнорироваться)
+const variableValue = ref(computedValue.value + 1); // variables group, зависит от computed-hooks
+
+// Server-requests group
+const data = await useFetch('/api/data'); // server-requests group
+
+// Computed-hooks group
+const computedValue = computed(() => variableValue.value ? 10 : 20); // computed-hooks group, зависит от variables
+</script>
+      `,
+      options: [{ allowCyclicDependencies: true }],
+    },
+    {
+      filename: "test-complex-component.vue",
+      code: `
+<template>
+  <div>
+    <component v-for="block in blocks" :key="block.name" :is="block.component" />
+  </div>
+</template>
+
+<script setup lang="ts">
+// Libraries
+const blockRefs = reactive<Record<string, HTMLElement>>({});
+
+// Variables
+const blocks = [
+  { name: 'statistic', title: 'Статистика', component: Statistic },
+  { name: 'calendar', title: 'Календарь', component: Calendar },
+  { name: 'goals', title: 'Цели', component: Goals },
+  { name: 'vectors', title: 'Векторы', component: Vectors },
+  { name: 'player-statistic', title: 'Статистика игроков', component: PlayerStatistic },
+];
+
+// App lifecycle
+definePageMeta({
+  middleware: ['auth', 'route'],
+  auth: true,
+  route: 'index',
+});
+</script>
+      `,
     },
   ],
 
@@ -221,6 +275,96 @@ const { data } = await useFetch('/api/items');
 const message = ref('Hello');
 </script>
       `,
+      errors: [
+        {
+          messageId: "incorrectOrder",
+        },
+      ],
+    },
+  ],
+});
+
+// Тесты для пользовательских категорий
+ruleTester.run("vue-script-setup-order-simple with custom groups", rule, {
+  valid: [
+    {
+      filename: "custom-group-test.vue",
+      code: `
+<template>
+  <div>{{ message }}</div>
+</template>
+
+<script setup lang="ts">
+// Правильный порядок с пользовательской группой
+const route = useRoute();
+const authStore = useAuthStore();
+const analyticsService = useGoogleAnalytics();
+const message = ref('Hello');
+</script>
+      `,
+      options: [
+        {
+          order: ["framework-init", "stores", "my-analytics", "variables"],
+          groups: {
+            "my-analytics": {
+              patterns: ["useGoogleAnalytics", "analyticsService.*"],
+              description: "Analytics services",
+            },
+          },
+        },
+      ],
+    },
+    {
+      filename: "simple-custom-group.vue",
+      code: `
+<template>
+  <div>{{ message }}</div>
+</template>
+
+<script setup lang="ts">
+// Простая проверка пользовательской группы
+const customApi = useMyApi();
+const data = ref(null);
+</script>
+      `,
+      options: [
+        {
+          order: ["my-api", "variables"],
+          groups: {
+            "my-api": {
+              patterns: ["useMyApi"],
+              description: "My API functions",
+            },
+          },
+        },
+      ],
+    },
+  ],
+  invalid: [
+    {
+      filename: "custom-group-wrong-order.vue",
+      code: `
+<template>
+  <div>{{ message }}</div>
+</template>
+
+<script setup lang="ts">
+// Неправильный порядок - variables перед analytics
+const message = ref('Hello');
+const analyticsService = useGoogleAnalytics();
+</script>
+      `,
+      options: [
+        {
+          order: ["my-analytics", "variables"],
+          groups: {
+            "my-analytics": {
+              patterns: ["useGoogleAnalytics"],
+              description: "Analytics services",
+            },
+          },
+        },
+      ],
       errors: [
         {
           messageId: "incorrectOrder",

@@ -62,6 +62,37 @@ onMounted(() => {});
 </script>
       `,
     },
+    {
+      filename: "test-complex-component.vue",
+      code: `
+<template>
+  <div>
+    <component v-for="block in blocks" :key="block.name" :is="block.component" />
+  </div>
+</template>
+
+<script setup lang="ts">
+// Libraries
+const blockRefs = reactive<Record<string, HTMLElement>>({});
+
+// Variables
+const blocks = [
+  { name: 'statistic', title: 'Статистика', component: Statistic },
+  { name: 'calendar', title: 'Календарь', component: Calendar },
+  { name: 'goals', title: 'Цели', component: Goals },
+  { name: 'vectors', title: 'Векторы', component: Vectors },
+  { name: 'player-statistic', title: 'Статистика игроков', component: PlayerStatistic },
+];
+
+// App lifecycle
+definePageMeta({
+  middleware: ['auth', 'route'],
+  auth: true,
+  route: 'index',
+});
+</script>
+      `,
+    },
   ],
 
   invalid: [

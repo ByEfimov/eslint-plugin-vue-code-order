@@ -13,8 +13,8 @@ interface GroupConfig {
 }
 
 interface OrderConfig {
-  order: string[];
-  groups: Record<string, GroupConfig>;
+  order?: string[];
+  groups?: Record<string, GroupConfig>;
 }
 
 const defaultOrder = [
@@ -428,7 +428,7 @@ const defaultGroups: Record<string, GroupConfig> = {
       "^(message|loading|data|config|options|dateRange|buttonOptions|isLoading|isError|error|result|response|payload|params|query|body|headers|status|state|form|formData|formState|formRef|modalRef|dialogRef|tableRef|listRef|inputRef|buttonRef|containerRef|elementRef)$",
       "^(show|hide|open|close|active|inactive|visible|hidden|enabled|disabled|selected|checked|expanded|collapsed|readonly|editable)$",
       "^(current|selected|active|focused|hovered|pressed|dragging|resizing|loading|pending|success|error|warning|info)$",
-      "^(items|list|data|collection|records|entries|results|values|keys|options|choices|selections)$",
+      "^(items|list|data|collection|records|entries|results|values|keys|options|choices|selections|blocks)$",
       "^(text|content|value|name|title|label|description|message|note|comment|placeholder|hint|tooltip)$",
       "^(count|total|length|size|width|height|top|left|right|bottom|x|y|offset|position|index|page|limit|skip)$",
       "^(id|uuid|key|token|hash|signature|checksum|version|timestamp|date|time|duration|delay|timeout|interval)$",
@@ -1173,6 +1173,35 @@ function getGroupIndex(group: string | null, order: string[]): number {
   return index === -1 ? order.length : index;
 }
 
+function mergeGroups(
+  defaultGroups: Record<string, GroupConfig>,
+  userGroups?: Record<string, GroupConfig>
+): Record<string, GroupConfig> {
+  if (!userGroups) {
+    return defaultGroups;
+  }
+
+  const merged = { ...defaultGroups };
+
+  for (const [groupName, groupConfig] of Object.entries(userGroups)) {
+    if (merged[groupName]) {
+      // Если группа уже существует, объединяем паттерны
+      merged[groupName] = {
+        patterns: [...merged[groupName].patterns, ...groupConfig.patterns],
+        description: groupConfig.description || merged[groupName].description,
+      };
+    } else {
+      // Если группа новая, добавляем её
+      merged[groupName] = {
+        patterns: [...groupConfig.patterns],
+        description: groupConfig.description || `Custom group: ${groupName}`,
+      };
+    }
+  }
+
+  return merged;
+}
+
 const rule: Rule.RuleModule = {
   meta: {
     type: "layout",
@@ -1216,7 +1245,7 @@ const rule: Rule.RuleModule = {
   create(context: Rule.RuleContext): Rule.RuleListener {
     const options = (context.options[0] as OrderConfig) || {};
     const order = options.order || defaultOrder;
-    const groups = { ...defaultGroups, ...options.groups };
+    const groups = mergeGroups(defaultGroups, options.groups);
 
     return {
       Program(node: Program) {

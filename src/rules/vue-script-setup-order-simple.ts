@@ -7,7 +7,6 @@ import {
   CallExpression,
   MemberExpression,
   Identifier,
-  Node,
 } from "estree";
 
 interface GroupConfig {
@@ -16,8 +15,8 @@ interface GroupConfig {
 }
 
 interface OrderConfig {
-  order: string[];
-  groups: Record<string, GroupConfig>;
+  order?: string[];
+  groups?: Record<string, GroupConfig>;
   allowCyclicDependencies?: boolean;
   skipDependencyCheck?: string[];
 }
@@ -308,13 +307,45 @@ const defaultGroups: Record<string, GroupConfig> = {
       "^(message|loading|data|config|options|dateRange|buttonOptions|isLoading|isError|error|result|response|payload|params|query|body|headers|status|state|form|formData|formState)$",
       "^(show|hide|open|close|active|inactive|visible|hidden|enabled|disabled|selected|checked|expanded|collapsed)$",
       "^(current|selected|active|focused|hovered|pressed|loading|pending|success|error|warning|info)$",
-      "^(items|list|data|collection|records|entries|results|values|keys|options|choices|selections)$",
+      "^(items|list|data|collection|records|entries|results|values|keys|options|choices|selections|blocks)$",
       "^(text|content|value|name|title|label|description|message|note|comment)$",
       // Добавляем паттерны для тестов
       "^(variableValue|someVariable|dynamicValue|processedValue|userValue|itemValue)$",
     ],
     description: "Variables and reactive data",
   },
+  "computed-hooks": {
+    patterns: [
+      // Vue computed
+      "computed",
+      "computedAsync",
+      "computedEager",
+      "computedWithControl",
+
+      // Custom hooks and composables
+      "useFilter",
+      "useSort",
+      "useSearch",
+      "usePaginate",
+      "useGroupBy",
+      "useMap",
+      "useReduce",
+      "useFind",
+
+      // Derived state
+      "useDerivedState",
+      "useComputedState",
+      "useCalculatedValue",
+      "useTransformedData",
+      "useMappedData",
+      "useFilteredData",
+      "useSortedData",
+      "useGroupedData",
+      "usePaginatedData",
+    ],
+    description: "Computed properties and custom hooks",
+  },
+
   "server-requests": {
     patterns: [
       // Nuxt 3 Data Fetching
@@ -350,37 +381,7 @@ const defaultGroups: Record<string, GroupConfig> = {
     ],
     description: "Server requests and data fetching",
   },
-  "computed-hooks": {
-    patterns: [
-      // Vue computed
-      "computed",
-      "computedAsync",
-      "computedEager",
-      "computedWithControl",
 
-      // Custom hooks and composables
-      "useFilter",
-      "useSort",
-      "useSearch",
-      "usePaginate",
-      "useGroupBy",
-      "useMap",
-      "useReduce",
-      "useFind",
-
-      // Derived state
-      "useDerivedState",
-      "useComputedState",
-      "useCalculatedValue",
-      "useTransformedData",
-      "useMappedData",
-      "useFilteredData",
-      "useSortedData",
-      "useGroupedData",
-      "usePaginatedData",
-    ],
-    description: "Computed properties and custom hooks",
-  },
   "app-functions": {
     patterns: [
       // Event handlers
@@ -804,11 +805,12 @@ function extractDependencies(
 ): string[] {
   const dependencies: string[] = [];
 
-  function traverse(obj: any): void {
-    // eslint-disable-line @typescript-eslint/no-explicit-any
+  function traverse(obj: unknown): void {
     if (!obj || typeof obj !== "object") return;
 
-    if (obj.type === "Identifier" && obj.name) {
+    const nodeObj = obj as Record<string, unknown>;
+
+    if (nodeObj.type === "Identifier" && typeof nodeObj.name === "string") {
       // Исключаем имена функций-конструкторов Vue (ref, computed и т.д.)
       const vueConstructors = [
         "ref",
@@ -827,17 +829,17 @@ function extractDependencies(
         "useAsyncData",
         "useLazyAsyncData",
       ];
-      if (!vueConstructors.includes(obj.name)) {
-        dependencies.push(obj.name);
+      if (!vueConstructors.includes(nodeObj.name)) {
+        dependencies.push(nodeObj.name);
       }
     }
 
-    for (const key in obj) {
-      if (key !== "parent" && obj[key]) {
-        if (Array.isArray(obj[key])) {
-          obj[key].forEach(traverse);
-        } else if (typeof obj[key] === "object") {
-          traverse(obj[key]);
+    for (const key in nodeObj) {
+      if (key !== "parent" && nodeObj[key]) {
+        if (Array.isArray(nodeObj[key])) {
+          (nodeObj[key] as unknown[]).forEach(traverse);
+        } else if (typeof nodeObj[key] === "object") {
+          traverse(nodeObj[key]);
         }
       }
     }
@@ -895,8 +897,9 @@ function hasCyclicDependencies(
   const group1Vars = variables.filter((v) => v.group === group1);
   const group2Vars = variables.filter((v) => v.group === group2);
 
-  // Debug info (remove in production)
   // console.log(`Checking cyclic dependencies between ${group1} and ${group2}`);
+  // console.log(`${group1} variables:`, group1Vars.map(v => `${v.name} (deps: ${v.dependencies.join(', ') || 'none'})`));
+  // console.log(`${group2} variables:`, group2Vars.map(v => `${v.name} (deps: ${v.dependencies.join(', ') || 'none'})`));
 
   // Проверяем, есть ли зависимости group1 -> group2
   const group1DependsOnGroup2 = group1Vars.some((v1) =>
@@ -912,6 +915,7 @@ function hasCyclicDependencies(
 
   // console.log(`${group1} depends on ${group2}:`, group1DependsOnGroup2);
   // console.log(`${group2} depends on ${group1}:`, group2DependsOnGroup1);
+  // console.log(`Has cycle:`, hasCycle);
 
   return hasCycle;
 }
@@ -991,6 +995,35 @@ function hasDependencyBetweenGroups(
   );
 }
 
+function mergeGroups(
+  defaultGroups: Record<string, GroupConfig>,
+  userGroups?: Record<string, GroupConfig>
+): Record<string, GroupConfig> {
+  if (!userGroups) {
+    return defaultGroups;
+  }
+
+  const merged = { ...defaultGroups };
+
+  for (const [groupName, groupConfig] of Object.entries(userGroups)) {
+    if (merged[groupName]) {
+      // Если группа уже существует, объединяем паттерны
+      merged[groupName] = {
+        patterns: [...merged[groupName].patterns, ...groupConfig.patterns],
+        description: groupConfig.description || merged[groupName].description,
+      };
+    } else {
+      // Если группа новая, добавляем её
+      merged[groupName] = {
+        patterns: [...groupConfig.patterns],
+        description: groupConfig.description || `Custom group: ${groupName}`,
+      };
+    }
+  }
+
+  return merged;
+}
+
 function hasDisableComment(
   node: Statement | ModuleDeclaration | Directive,
   sourceCode: any, // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -1052,7 +1085,7 @@ const rule: Rule.RuleModule = {
           allowCyclicDependencies: {
             type: "boolean",
             description:
-              "Allow cyclic dependencies between groups and skip order check for them",
+              "Allow cyclic dependencies between specific groups and skip order check only for those cyclic pairs, while maintaining order for other groups",
           },
           skipDependencyCheck: {
             type: "array",
@@ -1074,7 +1107,7 @@ const rule: Rule.RuleModule = {
   create(context: Rule.RuleContext): Rule.RuleListener {
     const options = (context.options[0] as OrderConfig) || {};
     const order = options.order || defaultOrder;
-    const groups = { ...defaultGroups, ...options.groups };
+    const groups = mergeGroups(defaultGroups, options.groups);
     const allowCyclicDependencies = options.allowCyclicDependencies || false;
     const skipDependencyCheck = options.skipDependencyCheck || [];
 
@@ -1112,49 +1145,27 @@ const rule: Rule.RuleModule = {
             // Проверяем, есть ли ESLint disable комментарий
             const hasDisableDirective = hasDisableComment(node, sourceCode);
 
-            // Проверяем, есть ли циклические зависимости между любыми группами
+            // Определяем, нужно ли пропустить проверку для текущей пары групп
             let shouldSkipCheck = false;
-            if (allowCyclicDependencies) {
-              // Получаем все группы
-              const allGroups = [
-                ...new Set(variables.map((v) => v.group).filter(Boolean)),
-              ] as string[];
+            if (allowCyclicDependencies && currentGroup && prevGroup) {
+              // Проверяем, есть ли циклические зависимости именно между текущими группами
+              const directCycle = hasCyclicDependencies(
+                variables,
+                currentGroup,
+                prevGroup
+              );
+              const transitiveCycle = hasTransitiveCyclicDependency(
+                variables,
+                currentGroup,
+                prevGroup
+              );
 
-              // Проверяем есть ли ЛЮБЫЕ циклические зависимости в проекте
-              let hasAnyCyclicDependencies = false;
+              // console.log(`Checking cyclic dependencies: ${currentGroup} vs ${prevGroup}`);
+              // console.log(`Direct cycle: ${directCycle}, Transitive cycle: ${transitiveCycle}`);
 
-              for (const group1 of allGroups) {
-                for (const group2 of allGroups) {
-                  if (group1 !== group2) {
-                    // Проверяем прямые циклические зависимости
-                    const directCycle = hasCyclicDependencies(
-                      variables,
-                      group1,
-                      group2
-                    );
-                    // Проверяем транзитивные циклические зависимости
-                    const transitiveCycle = hasTransitiveCyclicDependency(
-                      variables,
-                      group1,
-                      group2
-                    );
-
-                    if (directCycle || transitiveCycle) {
-                      hasAnyCyclicDependencies = true;
-                      // console.log(`Found ${directCycle ? 'direct' : 'transitive'} cyclic dependency between ${group1} and ${group2}`);
-                      break;
-                    }
-                  }
-                }
-                if (hasAnyCyclicDependencies) break;
-              }
-
-              // Если есть любые циклические зависимости, пропускаем проверку
-              if (hasAnyCyclicDependencies) {
+              if (directCycle || transitiveCycle) {
                 shouldSkipCheck = true;
-                // console.log(`Skipping order check due to cyclic dependencies in project`);
-              } else {
-                // console.log(`No cyclic dependencies found in project`);
+                // console.log(`Skipping order check for ${currentGroup} vs ${prevGroup} due to cyclic dependency`);
               }
             }
 
