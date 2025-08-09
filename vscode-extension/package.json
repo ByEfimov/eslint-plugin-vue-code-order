@@ -1,0 +1,75 @@
+{
+  "name": "vue-code-order-hover",
+  "displayName": "Vue Code Order Hover",
+  "description": "Shows function categories when hovering in Vue script setup blocks",
+  "version": "0.1.1",
+  "publisher": "byefimov",
+  "author": {
+    "name": "Nikita Efimov",
+    "email": "byefimov@yandex.ru"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/ByEfimov/eslint-plugin-vue-code-order#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ByEfimov/eslint-plugin-vue-code-order.git",
+    "directory": "vscode-extension"
+  },
+  "bugs": {
+    "url": "https://github.com/ByEfimov/eslint-plugin-vue-code-order/issues"
+  },
+  "keywords": [
+    "vue",
+    "vue3",
+    "script-setup",
+    "code-order",
+    "hover",
+    "tooltip",
+    "category",
+    "eslint",
+    "vue-code-order",
+    "composition-api"
+  ],
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "Other",
+    "Linters"
+  ],
+  "icon": "icon.png",
+  "activationEvents": [
+    "onLanguage:vue"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "Vue Code Order Hover",
+      "properties": {
+        "vueCodeOrderHover.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Vue Code Order hover tooltips"
+        },
+        "vueCodeOrderHover.showDescription": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show category description in hover tooltip"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "typescript": "^4.9.4"
+  },
+  "dependencies": {
+    "vue-eslint-parser": "^9.0.0"
+  }
+}
