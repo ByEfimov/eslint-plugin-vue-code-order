@@ -1,0 +1,52 @@
+{
+  "name": "eslint-plugin-vue-code-order",
+  "version": "1.0.0",
+  "description": "ESLint plugin for enforcing code order in Vue files",
+  "main": "lib/index.js",
+  "keywords": [
+    "eslint",
+    "eslintplugin",
+    "vue",
+    "code-order",
+    "formatting"
+  ],
+  "author": "Vue Code Order Team",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "peerDependencies": {
+    "eslint": ">=8.0.0"
+  },
+  "devDependencies": {
+    "@types/eslint": "^9.6.1",
+    "@types/jest": "^29.0.0",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "jest": "^29.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "vue-eslint-parser": "^9.0.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint lib/**/*.js",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "lib/",
+    "README.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/username/eslint-plugin-vue-code-order.git"
+  },
+  "bugs": {
+    "url": "https://github.com/username/eslint-plugin-vue-code-order/issues"
+  },
+  "homepage": "https://github.com/username/eslint-plugin-vue-code-order#readme"
+}

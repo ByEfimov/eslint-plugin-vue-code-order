@@ -1,0 +1,12 @@
+src/
+tests/
+.eslintrc.js
+tsconfig.json
+*.test.js
+*.test.ts
+.github/
+.vscode/
+.idea/
+node_modules/
+coverage/
+.nyc_output
