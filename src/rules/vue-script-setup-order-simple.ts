@@ -384,6 +384,17 @@ const defaultGroups: Record<string, GroupConfig> = {
 
   "app-functions": {
     patterns: [
+      // Data preparation and application functions
+      "^prepare[A-Z].*",
+      "^apply[A-Z].*",
+      "^process[A-Z].*",
+      "^calculate[A-Z].*",
+      "^compute[A-Z].*",
+      "^evaluate[A-Z].*",
+      "^execute[A-Z].*",
+      "^perform[A-Z].*",
+      "^run[A-Z].*",
+
       // Event handlers
       "^handle[A-Z].*",
       "^on(Click|Submit|Change|Input|Focus|Blur|Key|Mouse|Touch|Drag|Drop|Scroll|Resize|Load|Error)[A-Z].*",

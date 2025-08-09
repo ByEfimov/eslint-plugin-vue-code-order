@@ -118,6 +118,61 @@ onMounted(() => {});
 </script>
       `,
     },
+    // Test с новыми функциями prepare* и apply*
+    {
+      filename: "test-new-app-functions.vue",
+      code: `
+<template>
+  <div>Test</div>
+</template>
+
+<script setup lang="ts">
+// Framework initialization
+const route = useRoute();
+
+// Variables
+const players = ref([]);
+const newScore = ref({});
+const loading = ref(false);
+
+// App-functions - prepare* и apply* функции должны быть здесь
+const prepareAssessmentData = (player: number, scoreData: IScoreData) => {
+  const data: any = { sportsman: player };
+  data.rating = scoreData.score;
+  data.skill = scoreData.skill;
+  return data;
+};
+
+const prepareMistakeData = (scoreData: IScoreData) => {
+  const data: any = {};
+  data.comment = scoreData.comment;
+  data.errorFactors = scoreData.factor;
+  data.mistake = scoreData.error;
+  return data;
+};
+
+const applyScore = async (scoreData?: IScoreData): Promise<boolean> => {
+  if (!players.value?.length) return false;
+  const getScore: IScoreData = scoreData || newScore.value;
+  loading.value = true;
+  try {
+    if (!getScore?.skill) {
+      notify({ title: 'Ошибка', type: 'error', text: 'Выберите навык для оценивания!' });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    return false;
+  } finally {
+    loading.value = false;
+  }
+};
+
+// App lifecycle должен быть в конце
+onMounted(() => {});
+</script>
+      `,
+    },
   ],
 
   invalid: [
@@ -201,6 +256,43 @@ const unknownVariable = someUnknownFunction();
         {
           messageId: "incorrectOrder",
         },
+        {
+          messageId: "incorrectOrder",
+        },
+        {
+          messageId: "incorrectOrder",
+        },
+      ],
+    },
+    // Test неправильный порядок новых функций prepare* и apply*
+    {
+      filename: "test-wrong-order-new-functions.vue",
+      code: `
+<template>
+  <div>Test</div>
+</template>
+
+<script setup lang="ts">
+// Framework initialization
+const route = useRoute();
+
+// Variables
+const players = ref([]);
+
+// App lifecycle - неправильно, должен быть ПОСЛЕ app-functions
+onMounted(() => {});
+
+// App-functions после lifecycle - неправильно!
+const prepareAssessmentData = (player: number, scoreData: IScoreData) => {
+  return { sportsman: player };
+};
+
+const applyScore = async (): Promise<boolean> => {
+  return false;
+};
+</script>
+      `,
+      errors: [
         {
           messageId: "incorrectOrder",
         },

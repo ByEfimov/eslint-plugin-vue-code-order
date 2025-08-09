@@ -204,6 +204,42 @@ definePageMeta({
 </script>
       `,
     },
+    // Test с новыми функциями prepare* и apply* для простого правила
+    {
+      filename: "test-new-app-functions-simple.vue",
+      code: `
+<template>
+  <div>Test</div>
+</template>
+
+<script setup lang="ts">
+// Libraries
+const players = ref([]);
+const loading = ref(false);
+
+// App-functions - prepare* и apply* функции
+const prepareAssessmentData = (player: number, scoreData: IScoreData) => {
+  return { sportsman: player };
+};
+
+const prepareMistakeData = (scoreData: IScoreData) => {
+  return { comment: scoreData.comment };
+};
+
+const applyScore = async (): Promise<boolean> => {
+  loading.value = true;
+  try {
+    return true;
+  } finally {
+    loading.value = false;
+  }
+};
+
+// App lifecycle
+onMounted(() => {});
+</script>
+      `,
+    },
   ],
 
   invalid: [
