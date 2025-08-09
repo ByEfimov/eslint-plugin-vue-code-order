@@ -1,6 +1,4 @@
-import { Rule } from 'eslint';
-
-type MessageIds = 'incorrectOrder';
+import { Rule } from "eslint";
 
 interface GroupConfig {
   patterns: string[];
@@ -13,85 +11,104 @@ interface OrderConfig {
 }
 
 const defaultOrder = [
-  'framework-init',
-  'stores',
-  'libraries',
-  'variables',
-  'computed-hooks',
-  'server-requests',
-  'app-functions',
-  'modals',
-  'watchers-listeners',
-  'app-lifecycle'
+  "framework-init",
+  "stores",
+  "libraries",
+  "variables",
+  "computed-hooks",
+  "server-requests",
+  "app-functions",
+  "modals",
+  "watchers-listeners",
+  "app-lifecycle",
 ];
 
 const defaultGroups: Record<string, GroupConfig> = {
-  'framework-init': {
-    patterns: ['useRoute', 'useRouter', 'useNuxtApp', 'useCookie', 'useRuntimeConfig'],
-    description: 'Framework initialization functions'
+  "framework-init": {
+    patterns: [
+      "useRoute",
+      "useRouter",
+      "useNuxtApp",
+      "useCookie",
+      "useRuntimeConfig",
+    ],
+    description: "Framework initialization functions",
   },
-  'stores': {
-    patterns: ['.*Store$', 'usePinia', 'useStore'],
-    description: 'Store initialization'
+  stores: {
+    patterns: [".*Store$", "usePinia", "useStore"],
+    description: "Store initialization",
   },
-  'libraries': {
-    patterns: ['useModal', 'ref', 'reactive', 'nextTick'],
-    description: 'Library and Vue composition API'
+  libraries: {
+    patterns: ["useModal", "ref", "reactive", "nextTick"],
+    description: "Library and Vue composition API",
   },
-  'variables': {
-    patterns: ['^(message|loading|data|config|options|dateRange|buttonOptions)$'],
-    description: 'Variables and reactive data'
+  variables: {
+    patterns: [
+      "^(message|loading|data|config|options|dateRange|buttonOptions)$",
+    ],
+    description: "Variables and reactive data",
   },
-  'computed-hooks': {
-    patterns: ['computed', 'useFilter'],
-    description: 'Computed properties and custom hooks'
+  "computed-hooks": {
+    patterns: ["computed", "useFilter"],
+    description: "Computed properties and custom hooks",
   },
-  'server-requests': {
-    patterns: ['useAsyncData', 'useLazyAsyncData', 'useFetch', 'useLazyFetch'],
-    description: 'Server requests and data fetching'
+  "server-requests": {
+    patterns: ["useAsyncData", "useLazyAsyncData", "useFetch", "useLazyFetch"],
+    description: "Server requests and data fetching",
   },
-  'app-functions': {
-    patterns: ['^(handle[A-Z].*|update[A-Z].*)$'],
-    description: 'Application functions'
+  "app-functions": {
+    patterns: ["^(handle[A-Z].*|update[A-Z].*)$"],
+    description: "Application functions",
   },
-  'modals': {
-    patterns: ['^(open[A-Z].*Modal.*|close[A-Z].*Modal.*)$'],
-    description: 'Modal windows and functions'
+  modals: {
+    patterns: ["^(open[A-Z].*Modal.*|close[A-Z].*Modal.*)$"],
+    description: "Modal windows and functions",
   },
-  'watchers-listeners': {
-    patterns: ['watch', 'watchEffect'],
-    description: 'Watchers and event listeners'
+  "watchers-listeners": {
+    patterns: ["watch", "watchEffect"],
+    description: "Watchers and event listeners",
   },
-  'app-lifecycle': {
-    patterns: ['definePageMeta', 'onMounted', 'onUnmounted', 'onActivated', 'onDeactivated'],
-    description: 'App lifecycle and SEO functions'
-  }
+  "app-lifecycle": {
+    patterns: [
+      "definePageMeta",
+      "onMounted",
+      "onUnmounted",
+      "onActivated",
+      "onDeactivated",
+    ],
+    description: "App lifecycle and SEO functions",
+  },
 };
 
-function getCallExpressionName(declaration: any): string {
-  if (!declaration || !declaration.init) return '';
-  
-  if (declaration.init.type === 'CallExpression') {
-    if (declaration.init.callee.type === 'Identifier') {
+function getCallExpressionName(declaration: Rule.Node): string {
+  if (!declaration || !declaration.init) return "";
+
+  if (declaration.init.type === "CallExpression") {
+    if (declaration.init.callee.type === "Identifier") {
       return declaration.init.callee.name;
     }
-  } else if (declaration.init.type === 'AwaitExpression' && 
-             declaration.init.argument.type === 'CallExpression' && 
-             declaration.init.argument.callee.type === 'Identifier') {
+  } else if (
+    declaration.init.type === "AwaitExpression" &&
+    declaration.init.argument.type === "CallExpression" &&
+    declaration.init.argument.callee.type === "Identifier"
+  ) {
     return declaration.init.argument.callee.name;
   }
-  
-  return '';
+
+  return "";
 }
 
-function getNodeGroup(node: any, groups: Record<string, GroupConfig>): string | null {
+function getNodeGroup(
+  node: Rule.Node,
+  groups: Record<string, GroupConfig>
+): string | null {
   // Для переменных проверяем вызываемую функцию
-  if (node.type === 'VariableDeclaration') {
+  if (node.type === "VariableDeclaration") {
     for (const declaration of node.declarations) {
-      if (declaration.id.type === 'Identifier') {
+      if (declaration.id.type === "Identifier") {
         const callName = getCallExpressionName(declaration);
         const varName = declaration.id.name;
-        
+
         // Сначала проверяем по вызываемой функции
         if (callName) {
           for (const [groupName, group] of Object.entries(groups)) {
@@ -103,7 +120,7 @@ function getNodeGroup(node: any, groups: Record<string, GroupConfig>): string | 
             }
           }
         }
-        
+
         // Затем по имени переменной
         for (const [groupName, group] of Object.entries(groups)) {
           for (const pattern of group.patterns) {
@@ -116,10 +133,13 @@ function getNodeGroup(node: any, groups: Record<string, GroupConfig>): string | 
       }
     }
   }
-  
+
   // Для выражений
-  if (node.type === 'ExpressionStatement' && node.expression.type === 'CallExpression') {
-    if (node.expression.callee.type === 'Identifier') {
+  if (
+    node.type === "ExpressionStatement" &&
+    node.expression.type === "CallExpression"
+  ) {
+    if (node.expression.callee.type === "Identifier") {
       const callName = node.expression.callee.name;
       for (const [groupName, group] of Object.entries(groups)) {
         for (const pattern of group.patterns) {
@@ -131,7 +151,7 @@ function getNodeGroup(node: any, groups: Record<string, GroupConfig>): string | 
       }
     }
   }
-  
+
   return null;
 }
 
@@ -143,59 +163,62 @@ function getGroupIndex(group: string | null, order: string[]): number {
 
 const rule: Rule.RuleModule = {
   meta: {
-    type: 'layout',
+    type: "layout",
     docs: {
-      description: 'Enforce correct order of code in Vue script setup',
-      category: 'Stylistic Issues',
+      description: "Enforce correct order of code in Vue script setup",
+      category: "Stylistic Issues",
       recommended: false,
     },
-    fixable: 'code',
+    fixable: "code",
     schema: [
       {
-        type: 'object',
+        type: "object",
         properties: {
           order: {
-            type: 'array',
-            items: { type: 'string' }
+            type: "array",
+            items: { type: "string" },
           },
           groups: {
-            type: 'object',
+            type: "object",
             additionalProperties: {
-              type: 'object',
+              type: "object",
               properties: {
                 patterns: {
-                  type: 'array',
-                  items: { type: 'string' }
+                  type: "array",
+                  items: { type: "string" },
                 },
-                description: { type: 'string' }
-              }
-            }
-          }
+                description: { type: "string" },
+              },
+            },
+          },
         },
-        additionalProperties: false
-      }
+        additionalProperties: false,
+      },
     ],
     messages: {
-      incorrectOrder: 'Code should be ordered correctly. Expected "{{expectedGroup}}" but found "{{actualGroup}}"'
-    }
+      incorrectOrder:
+        'Code should be ordered correctly. Expected "{{expectedGroup}}" but found "{{actualGroup}}"',
+    },
   },
 
   create(context: Rule.RuleContext): Rule.RuleListener {
-    const options = context.options[0] as OrderConfig || {};
+    const options = (context.options[0] as OrderConfig) || {};
     const order = options.order || defaultOrder;
     const groups = { ...defaultGroups, ...options.groups };
 
     return {
-      'Program > VariableDeclaration, Program > ExpressionStatement, Program > FunctionDeclaration'(node: any) {
+      "Program > VariableDeclaration, Program > ExpressionStatement, Program > FunctionDeclaration"(
+        node: Rule.Node
+      ) {
         // Проверяем только если это Vue файл
         const filename = context.getFilename();
-        if (!filename.endsWith('.vue')) {
+        if (!filename.endsWith(".vue")) {
           return;
         }
 
         const sourceCode = context.getSourceCode();
         const allNodes = sourceCode.ast.body;
-        
+
         // Находим индекс текущей ноды
         const currentIndex = allNodes.indexOf(node);
         if (currentIndex === -1) return;
@@ -213,18 +236,22 @@ const rule: Rule.RuleModule = {
           if (prevGroupIndex > currentGroupIndex) {
             context.report({
               node,
-              messageId: 'incorrectOrder',
+              messageId: "incorrectOrder",
               data: {
-                expectedGroup: prevGroup ? (groups[prevGroup]?.description || prevGroup) : 'unknown',
-                actualGroup: currentGroup ? (groups[currentGroup]?.description || currentGroup) : 'unknown'
-              }
+                expectedGroup: prevGroup
+                  ? groups[prevGroup]?.description || prevGroup
+                  : "unknown",
+                actualGroup: currentGroup
+                  ? groups[currentGroup]?.description || currentGroup
+                  : "unknown",
+              },
             });
             break;
           }
         }
-      }
+      },
     };
-  }
+  },
 };
 
 export default rule;
