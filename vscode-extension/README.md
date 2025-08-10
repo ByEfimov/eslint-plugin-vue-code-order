@@ -1,5 +1,7 @@
 # Vue Code Order Hover
 
+Для связи рекомендую использовать телеграм: @ByEfimovv
+
 <img src="icon.png" alt="Vue Code Order Hover" width="128" height="128" align="left">
 
 VS Code extension that shows function categories when hovering over functions in Vue files with `<script setup>`. Perfect for maintaining clean and organized Vue.js code structure!

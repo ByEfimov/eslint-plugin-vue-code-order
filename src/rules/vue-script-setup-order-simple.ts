@@ -169,6 +169,9 @@ const defaultGroups: Record<string, GroupConfig> = {
       "useECharts",
       "useChartJS",
       "useApexCharts",
+      "ChartJS",
+      "Chart",
+      "register",
 
       // Map Libraries
       "useMap",
@@ -189,21 +192,7 @@ const defaultGroups: Record<string, GroupConfig> = {
   },
   libraries: {
     patterns: [
-      // Vue 3 Composition API
-      "reactive",
-      "ref",
-      "readonly",
-      "shallowRef",
-      "shallowReactive",
-      "toRef",
-      "toRefs",
-      "toRaw",
-      "markRaw",
-      "unref",
-      "isRef",
-      "isReactive",
-      "isReadonly",
-      "isProxy",
+      // Vue 3 Composition API (utilities and effects, not variables)
       "nextTick",
       "watchEffect",
       "watchPostEffect",
@@ -214,9 +203,6 @@ const defaultGroups: Record<string, GroupConfig> = {
       "inject",
       "provide",
       "hasInjectionContext",
-      "customRef",
-      "triggerRef",
-      "shallowReadonly",
 
       // VueUse Core (базовые)
       "useCounter",
@@ -303,6 +289,25 @@ const defaultGroups: Record<string, GroupConfig> = {
   },
   variables: {
     patterns: [
+      // Vue 3 Composition API for creating reactive variables
+      "ref",
+      "reactive",
+      "readonly",
+      "shallowRef",
+      "shallowReactive",
+      "toRef",
+      "toRefs",
+      "toRaw",
+      "markRaw",
+      "unref",
+      "isRef",
+      "isReactive",
+      "isReadonly",
+      "isProxy",
+      "customRef",
+      "triggerRef",
+      "shallowReadonly",
+
       // Common variable patterns
       "^(message|loading|data|config|options|dateRange|buttonOptions|isLoading|isError|error|result|response|payload|params|query|body|headers|status|state|form|formData|formState)$",
       "^(show|hide|open|close|active|inactive|visible|hidden|enabled|disabled|selected|checked|expanded|collapsed)$",
@@ -918,9 +923,7 @@ function hasCyclicDependencies(
   const group1Vars = variables.filter((v) => v.group === group1);
   const group2Vars = variables.filter((v) => v.group === group2);
 
-  // console.log(`Checking cyclic dependencies between ${group1} and ${group2}`);
-  // console.log(`${group1} variables:`, group1Vars.map(v => `${v.name} (deps: ${v.dependencies.join(', ') || 'none'})`));
-  // console.log(`${group2} variables:`, group2Vars.map(v => `${v.name} (deps: ${v.dependencies.join(', ') || 'none'})`));
+  // Отладочные комментарии убраны для чистоты кода
 
   // Проверяем, есть ли зависимости group1 -> group2
   const group1DependsOnGroup2 = group1Vars.some((v1) =>
@@ -934,11 +937,41 @@ function hasCyclicDependencies(
 
   const hasCycle = group1DependsOnGroup2 && group2DependsOnGroup1;
 
-  // console.log(`${group1} depends on ${group2}:`, group1DependsOnGroup2);
-  // console.log(`${group2} depends on ${group1}:`, group2DependsOnGroup1);
-  // console.log(`Has cycle:`, hasCycle);
+  // Возвращаем результат проверки циклических зависимостей
 
   return hasCycle;
+}
+
+function hasImpossibleOrderDependency(
+  variables: VariableInfo[],
+  currentGroup: string,
+  prevGroup: string,
+  order: string[]
+): boolean {
+  // Получаем индексы групп в правильном порядке
+  const currentGroupIndex = getGroupIndex(currentGroup, order);
+  const prevGroupIndex = getGroupIndex(prevGroup, order);
+
+  // Если нарушен порядок (prevGroupIndex > currentGroupIndex),
+  // то проверяем, есть ли зависимость, которая делает правильный порядок невозможным
+  if (prevGroupIndex > currentGroupIndex) {
+    const currentGroupVars = variables.filter((v) => v.group === currentGroup);
+    const prevGroupVars = variables.filter((v) => v.group === prevGroup);
+
+    // Проверяем, зависит ли currentGroup от prevGroup
+    // (элемент, который должен идти раньше, зависит от элемента, который должен идти позже)
+    const currentDependsOnPrev = currentGroupVars.some((currentVar) =>
+      prevGroupVars.some((prevVar) =>
+        currentVar.dependencies.includes(prevVar.name)
+      )
+    );
+
+    if (currentDependsOnPrev) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function hasTransitiveCyclicDependency(
@@ -1181,12 +1214,16 @@ const rule: Rule.RuleModule = {
                 prevGroup
               );
 
-              // console.log(`Checking cyclic dependencies: ${currentGroup} vs ${prevGroup}`);
-              // console.log(`Direct cycle: ${directCycle}, Transitive cycle: ${transitiveCycle}`);
+              // Проверяем, есть ли невозможная зависимость порядка
+              const impossibleOrder = hasImpossibleOrderDependency(
+                variables,
+                currentGroup,
+                prevGroup,
+                order
+              );
 
-              if (directCycle || transitiveCycle) {
+              if (directCycle || transitiveCycle || impossibleOrder) {
                 shouldSkipCheck = true;
-                // console.log(`Skipping order check for ${currentGroup} vs ${prevGroup} due to cyclic dependency`);
               }
             }
 

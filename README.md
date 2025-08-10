@@ -1,5 +1,7 @@
 # ESLint Plugin Vue Code Order
 
+Для связи рекомендую использовать телеграм: @ByEfimovv
+
 <img src="icon.png" alt="Plugin Icon" width="64" height="64" align="left">
 
 ESLint плагин для автоматической проверки и обеспечения правильного порядка кода в Vue файлах с `<script setup>`. Помогает поддерживать чистоту и читаемость кода в ваших Vue.js проектах.

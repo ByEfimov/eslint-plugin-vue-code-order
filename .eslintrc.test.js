@@ -1,18 +1,22 @@
 module.exports = {
-  root: true,
   env: {
-    browser: true,
-    es2021: true,
+    node: true,
+    es2020: true,
   },
+  extends: ["eslint:recommended", "@vue/typescript/recommended"],
   parser: "vue-eslint-parser",
   parserOptions: {
     ecmaVersion: 2020,
     sourceType: "module",
+    parser: "@typescript-eslint/parser",
   },
-  plugins: ["./lib/index.js"],
+  plugins: ["@typescript-eslint", "vue"],
   rules: {
-    "vue-code-order/vue-script-setup-order": "error",
-    "no-unused-vars": "off",
-    "no-undef": "off",
+    "vue-code-order/vue-script-setup-order-simple": [
+      "error",
+      {
+        allowCyclicDependencies: true,
+      },
+    ],
   },
 };

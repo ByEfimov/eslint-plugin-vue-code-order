@@ -121,7 +121,7 @@ const filteredData = computed(() => {
 // Server request
 const { data } = await useFetch('/api/items');
 
-// Libraries (группа libraries в skipDependencyCheck) 
+// Variables (группа variables в skipDependencyCheck) 
 const searchQuery = ref('');
 
 // Computed hooks
@@ -130,7 +130,7 @@ const filteredData = computed(() => {
 });
 </script>
       `,
-      options: [{ skipDependencyCheck: ["libraries"] }],
+      options: [{ skipDependencyCheck: ["variables"] }],
     },
     {
       filename: "test-universal-cyclic-dependencies.vue",
@@ -140,10 +140,10 @@ const filteredData = computed(() => {
 </template>
 
 <script setup lang="ts">
-// Циклические зависимости между любыми категориями - libraries и variables
-const dynamicRef = ref(variableValue);  // libraries зависит от variables
+// Циклические зависимости между любыми категориями - variables
+const dynamicRef = ref(variableValue);  // variables зависит от variables (циклическая зависимость)
 
-const variableValue = dynamicRef.value || 'default';  // variables зависит от libraries
+const variableValue = dynamicRef.value || 'default';  // variables зависит от variables
 
 const message = ref('hello');
 </script>
@@ -158,8 +158,8 @@ const message = ref('hello');
 </template>
 
 <script setup lang="ts">
-// Libraries group
-const message = ref('Hello'); // libraries group
+// Variables group
+const message = ref('Hello'); // variables group
 
 // Циклические зависимости между variables и computed-hooks (будут игнорироваться)
 const variableValue = ref(computedValue.value + 1); // variables group, зависит от computed-hooks
@@ -169,6 +169,27 @@ const data = await useFetch('/api/data'); // server-requests group
 
 // Computed-hooks group
 const computedValue = computed(() => variableValue.value ? 10 : 20); // computed-hooks group, зависит от variables
+</script>
+      `,
+      options: [{ allowCyclicDependencies: true }],
+    },
+    {
+      filename: "test-useAsyncData-computed-cycle.vue",
+      code: `
+<template>
+  <div>{{ givenGoals }}</div>
+</template>
+
+<script setup lang="ts">
+const selectedTeamId = computed(() => teamsStore.selectedTeamId);
+
+const { data: givenGoals } = useAsyncData(
+  'team-goals',
+  async () => {
+    return await goalsStore.getGroupAllGoals(selectedTeamId.value!);
+  },
+  { watch: [selectedTeamId], default: () => [] }
+);
 </script>
       `,
       options: [{ allowCyclicDependencies: true }],
